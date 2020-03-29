@@ -934,6 +934,8 @@ static void init_keywords() {
 #undef op
 }
 
+// static Token *my_token = &(Token){ .kind = TNUMBER, .sval = "1" };
+
 static void init_predefined_macros() {
     vec_push(std_include_path, BUILD_DIR "/include");
     vec_push(std_include_path, "/usr/local/lib/8cc/include");
@@ -952,6 +954,8 @@ static void init_predefined_macros() {
     define_special_macro("__COUNTER__", handle_counter_macro);
     define_special_macro("__INCLUDE_LEVEL__", handle_include_level_macro);
     define_special_macro("__TIMESTAMP__", handle_timestamp_macro);
+
+    // define_obj_macro("__my65816__", my_token);
 
     read_from_string("#include <" BUILD_DIR "/include/8cc.h>");
 }

@@ -6,7 +6,7 @@
 #define __LP64__ 1
 #define __SIZEOF_DOUBLE__ 8
 #define __SIZEOF_FLOAT__ 4
-#define __SIZEOF_INT__ 4
+#define __SIZEOF_INT__ 2
 #define __SIZEOF_LONG_DOUBLE__ 8
 #define __SIZEOF_LONG_LONG__ 8
 #define __SIZEOF_LONG__ 8

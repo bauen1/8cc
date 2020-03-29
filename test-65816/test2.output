@@ -1,0 +1,38 @@
+	.code
+.global f
+f:
+	pha
+; .file 1 "test-65816/test2.c"
+; .loc 1 2 0
+	# }
+; emit_lvar: node->ty = 94201451244096, node->loff = 4294967294
+
+	lda 0x3,s
+	rts
+	rts
+	.code
+.global f2
+f2:
+	pha
+; .loc 1 6 0
+	# }
+; .loc 1 2 0
+	# }
+; emit_lvar: node->ty = 94201451289056, node->loff = 4294967292
+
+	lda 0x1,s
+	rts
+	rts
+	.code
+.global f3
+f3:
+	pha
+; .loc 1 10 0
+	# }
+; .loc 1 6 0
+	# }
+; emit_lvar: node->ty = 94201451293936, node->loff = 0
+
+	lda 0x5,s
+	rts
+	rts

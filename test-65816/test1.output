@@ -1,0 +1,10 @@
+	.code
+.global f
+f:
+; .file 1 "test-65816/test1.c"
+; .loc 1 2 0
+	# }
+; load literal int!
+	lda #$0001
+	rts
+	rts
