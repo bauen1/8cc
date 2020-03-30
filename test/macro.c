@@ -74,7 +74,7 @@ static void predefined() {
     expect(201112, __STDC_VERSION__);
 
     expect(2, __SIZEOF_SHORT__);
-    expect(4, __SIZEOF_INT__);
+    expect(2, __SIZEOF_INT__);
     expect(8, __SIZEOF_LONG__);
     expect(8, __SIZEOF_LONG_LONG__);
     expect(4, __SIZEOF_FLOAT__);
