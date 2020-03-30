@@ -187,3 +187,7 @@ int f18(int a, int b, int c) {
 }
 
 static int t19 = 0xBEEF;
+
+long f20(void) {
+    return 10l;
+}

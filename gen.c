@@ -46,6 +46,8 @@ static int stackpos = 0;
 void emit_literal(Node *node) {
     switch(node->ty->kind) {
         case KIND_BOOL:
+            emit("lda #$%02X", !!node->ival);
+            break;
         case KIND_SHORT:
         case KIND_CHAR:
             emit("lda #$%02X", node->ival);
@@ -54,19 +56,11 @@ void emit_literal(Node *node) {
             emit("lda #$%04X", node->ival);
             break;
         case KIND_LONG:
-        case KIND_LLONG:
-            assert(0);
+            emit("lda #$%04X", node->ival & 0xFFFF);
+            emit("ldx #$%04X", (node->ival >> 16) & 0xFFFF);
             break;
-        case KIND_FLOAT:
+        default:
             assert(0);
-            break;
-        case KIND_DOUBLE:
-        case KIND_LDOUBLE:
-            assert(0);
-            break;
-        case KIND_ARRAY:
-            assert(0);
-            break;
     }
 }
 
@@ -593,11 +587,11 @@ static void emit_global_var(Node *v) {
 void emit_toplevel(Node *v) {
     if (v->kind == AST_FUNC) {
         emit_func(v);
-        emit_noident("");
     } else if (v->kind == AST_DECL) {
         emit_global_var(v);
-        emit_noident("");
     } else {
         error("internal error");
     }
+
+    emit_noident("");
 }
