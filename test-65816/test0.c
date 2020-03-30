@@ -195,3 +195,7 @@ long f20(void) {
 long f21(void) {
     return t19;
 }
+
+long f22(long a) {
+    return a * f22();
+}

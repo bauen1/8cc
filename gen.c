@@ -304,6 +304,8 @@ void emit_binop_int(Node *node) {
                 stackpos -= 2;
             }
             break;
+        case '*':
+            assert(0);
         default:
             printf("node->kind = %u\n", node->kind);
             assert(0);
@@ -319,10 +321,9 @@ static void emit_lsave(Type *ty, int off) {
         case KIND_INT:
             assert(0);
         case KIND_LONG:
+            assert(0);
         case KIND_PTR:
             emit("sta $%02X,S", 1 + stackpos - off);
-            emit("txa");
-            emit("sta $%02X,S", 1 + stackpos - off + 1);
             break;
         case KIND_LLONG:
             assert(0);
@@ -338,14 +339,16 @@ static void emit_lsave(Type *ty, int off) {
 static void emit_store(Node *node) {
     switch(node->kind) {
         case AST_DEREF:
+            /* this is bad */
             emit("pha");
             stackpos += 2;
             emit_expr(node->operand);
-            assert(node->operand->ty->ptr->size == 2);
+            // assert(node->operand->ty->ptr->size == 2);
             emit("pha");
             stackpos += 2;
             emit("lda $3,S");
-            emit("sta $1,S");
+            emit("ldy #$0000");
+            emit("sta ($1,S),Y");
             emit("ply");
             emit("ply");
             stackpos -= 4;
@@ -656,7 +659,17 @@ static void emit_global_var(Node *v) {
     }
 }
 
+static bool first = true;
 void emit_toplevel(Node *v) {
+    if (first) {
+        emit_noident("; 8cc : ca65 assembly output");
+        emit_noident(".setcpu \"65816\"");
+        emit_noident(".A16");
+        emit_noident(".I16");
+        emit_noident(".P816");
+    }
+
+    first = false;
     if (v->kind == AST_FUNC) {
         emit_func(v);
     } else if (v->kind == AST_DECL) {
