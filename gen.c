@@ -518,11 +518,67 @@ void emit_func(Node *func) {
     emit_ret();
 }
 
-void emit_global_var(Node *v) {
+static void emit_zero(size_t size) {
+    for (; size >= 1; size--) { emit(".byte $00"); }
+}
+
+static void emit_data_addr(Node *operand, int depth) {
+    assert(0);
+}
+
+static void emit_data_primtype(Type *ty, Node *val, int depth) {
+    switch(ty->kind) {
+        case KIND_BOOL:
+            emit(".byte %d", !!eval_intexpr(val, NULL));
+            break;
+        case KIND_CHAR:
+            emit(".byte %d", eval_intexpr(val, NULL));
+            break;
+        case KIND_INT:
+            emit(".word $%04X", eval_intexpr(val, NULL));
+            break;
+        default:
+            assert(0);
+    }
+}
+
+static void do_emit_data(Vector *inits, int size, int off, int depth) {
+    for (int i = 0; i < vec_len(inits) && 0 < size; i++) {
+        Node *node = vec_get(inits, i);
+        Node *v = node->initval;
+        /* emit_padding(node, off); */
+        if (node->totype->bitsize > 0) {
+            assert(0);
+        } else {
+            off += node->totype->size;
+            size -= node->totype->size;
+        }
+
+        if (v->kind == AST_ADDR) {
+            emit_data_addr(v->operand, depth);
+            continue;
+        }
+
+        if (v->kind == AST_LVAR && v->lvarinit) {
+            do_emit_data(v->lvarinit, v->ty->size, 0, depth);
+            continue;
+        }
+
+        emit_data_primtype(node->totype, node->initval, depth);
+    }
+
+    emit_zero(size);
+}
+static void emit_global_var(Node *v) {
     emit_noident("; global variable");
     if (v->declinit) {
         /* .data */
-        emit_noident("; TODO: implement!");
+        emit_noident(".data");
+        if (!v->declvar->ty->isstatic) {
+            emit_noident(".global %s", v->declvar->glabel);
+        }
+        emit_noident("%s:", v->declvar->glabel);
+        do_emit_data(v->declinit, v->declvar->ty->size, 0, 0);
     } else {
         /* .bss */
         emit_noident(".bss");

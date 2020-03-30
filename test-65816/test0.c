@@ -185,3 +185,5 @@ int f18(int a, int b, int c) {
     return b;
     return c;
 }
+
+static int t19 = 0xBEEF;
