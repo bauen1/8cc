@@ -218,7 +218,7 @@ static Node *ast_string(int enc, char *str, int len) {
     switch (enc) {
     case ENC_NONE:
     case ENC_UTF8:
-        ty = make_array_type(type_char, len);
+        ty = make_array_type(type_uchar, len);
         body = str;
         break;
     case ENC_CHAR16: {
@@ -1622,9 +1622,9 @@ static void assign_string(Vector *inits, Type *ty, char *p, int off) {
         ty->len = ty->size = strlen(p) + 1;
     int i = 0;
     for (; i < ty->len && *p; i++)
-        vec_push(inits, ast_init(ast_inttype(type_char, *p++), type_char, off + i));
+        vec_push(inits, ast_init(ast_inttype(type_uchar, *p++), type_uchar, off + i));
     for (; i < ty->len; i++)
-        vec_push(inits, ast_init(ast_inttype(type_char, 0), type_char, off + i));
+        vec_push(inits, ast_init(ast_inttype(type_uchar, 0), type_uchar, off + i));
 }
 
 static bool maybe_read_brace() {
@@ -2143,17 +2143,17 @@ static Type *read_decl_spec(int *rsclass) {
     Type *ty;
     switch (kind) {
     case kvoid:   ty = type_void; goto end;
-    case kbool:   ty = make_numtype(KIND_BOOL, false); goto end;
-    case kchar:   ty = make_numtype(KIND_CHAR, sig == kunsigned); goto end;
+    case kbool:   ty = make_numtype(KIND_BOOL, true); goto end;
+    case kchar:   ty = make_numtype(KIND_CHAR, sig != ksigned); goto end;
     case kfloat:  ty = make_numtype(KIND_FLOAT, false); goto end;
     case kdouble: ty = make_numtype(size == klong ? KIND_LDOUBLE : KIND_DOUBLE, false); goto end;
     default: break;
     }
     switch (size) {
-    case kshort: ty = make_numtype(KIND_SHORT, sig == kunsigned); goto end;
-    case klong:  ty = make_numtype(KIND_LONG, sig == kunsigned); goto end;
-    case kllong: ty = make_numtype(KIND_LLONG, sig == kunsigned); goto end;
-    default:     ty = make_numtype(KIND_INT, sig == kunsigned); goto end;
+    case kshort: ty = make_numtype(KIND_SHORT, sig != ksigned); goto end;
+    case klong:  ty = make_numtype(KIND_LONG, sig != ksigned); goto end;
+    case kllong: ty = make_numtype(KIND_LLONG, sig != ksigned); goto end;
+    default:     ty = make_numtype(KIND_INT, sig != ksigned); goto end;
     }
     error("internal error: kind: %d, size: %d", kind, size);
  end:
