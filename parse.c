@@ -132,7 +132,7 @@ char *make_tempname() {
 
 char *make_label() {
     static int c = 0;
-    return format(".L%d", c++);
+    return format("L%d", c++);
 }
 
 static char *make_static_label(char *name) {
