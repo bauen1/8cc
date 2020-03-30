@@ -65,6 +65,8 @@ void emit_literal(Node *node) {
 }
 
 void emit_lload(Type *ty, int off) {
+    assert(ty->bitsize <= 0);
+
     if (ty->kind == KIND_ARRAY) {
         assert(0);
     } else if (ty->kind == KIND_FLOAT) {
@@ -124,9 +126,50 @@ static void emit_return(Node *node) {
     emit_ret();
 }
 
+static void emit_intcast(Type *from) {
+    switch (from->kind) {
+        case KIND_BOOL:
+        case KIND_CHAR:
+        case KIND_SHORT:
+            emit("and #$00ff");
+            if (! from->usig) {
+                /* sign-extend */
+                emit("bpl :");
+                emit("eor #$ff00");
+                emit_noident(":\t");
+            }
+
+            /* fall-through */
+        case KIND_INT:
+            emit("ldx #$0000");
+            break;
+        case KIND_LONG:
+            break;
+        default:
+            assert(0);
+    }
+}
+
+static void emit_load_conv(Type *to, Type *from) {
+    if (is_inttype(from) && to->kind == KIND_FLOAT) {
+        assert(0);
+    } else if (is_inttype(from) && to->kind == KIND_DOUBLE) {
+        assert(0);
+    } else if (from->kind == KIND_FLOAT && to->kind == KIND_DOUBLE) {
+        assert(0);
+    } else if ((from->kind == KIND_DOUBLE || from->kind == KIND_LDOUBLE) && to->kind == KIND_FLOAT) {
+        assert(0);
+    } else if (to->kind == KIND_BOOL) {
+        assert(0);
+    } else if (is_inttype(from) && is_inttype(to)) {
+        emit_intcast(from);
+    } else if (is_inttype(to)) {
+    }
+}
+
 static void emit_conv(Node *node) {
     emit_expr(node->operand);
-    /* emit_load_convert */
+    emit_load_conv(node->ty, node->operand->ty);
 }
 
 static void emit_save_literal(Node *node, Type *totype, int off) {
@@ -328,9 +371,38 @@ void emit_assign(Node *node) {
     emit_store(node->left);
 }
 
-static void emit_gload(Node *node) {
-    /* FIXME: check type and size */
-    emit("lda %s", node->glabel);
+static void emit_gload(Type *ty, char *label, int off) {
+    assert(ty->bitsize <= 0);
+
+    if (ty->kind == KIND_ARRAY) {
+        /* TODO: should be easy to implement */
+        assert(0);
+    } else if (ty->kind == KIND_FLOAT) {
+        assert(0);
+    } else if (ty->kind == KIND_DOUBLE || ty->kind == KIND_LDOUBLE) {
+        assert(0);
+    } else {
+        assert(off == 0);
+        switch (ty->size) {
+            case 1:
+                emit("lda %s", label);
+                emit("and $00ff");
+                break;
+            case 2:
+                emit("lda %s", label);
+                break;
+            case 4:
+                emit("lda %s", label);
+                emit("ldx %s + 1", label);
+                break;
+            default:
+                assert(0);
+        }
+    }
+}
+
+static void emit_gvar(Node *node) {
+    emit_gload(node->ty, node->glabel, 0);
 }
 
 static void emit_func_call(Node *node) {
@@ -372,7 +444,7 @@ void emit_expr(Node *node) {
             emit_lvar(node);
             break;
         case AST_GVAR:
-            emit_gload(node);
+            emit_gvar(node);
             break;
         case AST_FUNCDESG:
             assert(0);

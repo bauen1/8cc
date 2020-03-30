@@ -191,3 +191,7 @@ static int t19 = 0xBEEF;
 long f20(void) {
     return 10l;
 }
+
+long f21(void) {
+    return t19;
+}
