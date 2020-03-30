@@ -1,37 +1,16 @@
-8cc C Compiler
-==============
+# 8cc 65816
 
-8cc is a compiler for the C programming language.
-It's intended to support all C11 language features
-while keeping the code as small and simple as possible.
+A port of the 8cc compiler to 65816 native mode.
 
-The compiler is able to compile itself.
-You can see its code both as an implementation of the C language
-and as an example of what this compiler is able to compile.
+## What works
 
-8cc's source code is carefully written to be as concise and easy-to-read
-as possible, so that the source code becomes good study material
-to learn about various techniques used in compilers.
-You may find the lexer, the preprocessor and the parser are
-already useful to learn how C source code is processed at each stage.
+```C
+int f(int a, int b, int c) {
+    return a + b + c;
+}
+```
 
-It's not an optimizing compiler.
-Generated code is usually 2x or more slower than GCC.
-I plan to implement a reasonable level of optimization in the future.
-
-8cc supports x86-64 Linux only. I have no plan to make it portable until
-I fix all known miscompilations and implement an optimization pass.
-As of 2015, I'm using Ubuntu 14 as my development platform.
-It should work on other x86-64 Linux distributions though.
-
-Note: Do not have high expectations on this compiler.
-If you try to compile a program other than the compiler itself,
-there's a good chance to see compile errors or miscompilations.
-This is basically a one-man project, and I have spent only a few
-months of my spare time so far.
-
-Build
------
+## Build
 
 Run make to build:
 
@@ -48,10 +27,10 @@ that we reach a fixed point.
 
     make fulltest
 
-Author
-------
+## Author
 
 Rui Ueyama <rui314@gmail.com>
+bauen
 
 
 Links for C compiler development
