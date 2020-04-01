@@ -16,7 +16,7 @@
 // for an array whose type is unknown, the array will be aligned to this
 // boundary.
 /* no alignment on the 65816 */
-#define MAX_ALIGN 0
+#define MAX_ALIGN 1
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -361,7 +361,6 @@ static Type *make_numtype(int kind, bool usig) {
 }
 
 static Type* make_ptr_type(Type *ty) {
-    // return make_type(&(Type){ KIND_PTR, .ptr = ty, .size = 8, .align = 8 });
     return make_type(&(Type){ KIND_PTR, .ptr = ty, .size = 2, .align = 1 });
 }
 
@@ -1357,6 +1356,8 @@ static char *read_rectype_tag() {
 }
 
 static int compute_padding(int offset, int align) {
+    return 0;
+
     return (offset % align == 0) ? 0 : align - offset % align;
 }
 
