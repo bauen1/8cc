@@ -13,6 +13,9 @@
 
 static void emit_lsave(Type *ty, int off);
 static void ensure_lvar_init(Node *node);
+static void emit_label(const char *s);
+static void emit_pre_op(Node *node, char op);
+static void emit_post_op(Node *node, char op);
 
 bool dumpstack = false;
 bool dumpsource = false;
@@ -31,7 +34,7 @@ static void emit_line(unsigned int line, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    //fprintf(outputfd, "; gen.c:%u\n", line);
+    fprintf(outputfd, "; gen.c:%u\n", line);
 
     vfprintf(outputfd, fmt, args);
 
@@ -88,6 +91,8 @@ void emit_lload(Type *ty, int off) {
                 emit("tax");
                 emit("lda $%02x,S", 1 + stackpos - off);
                 break;
+            case 0:
+                assert(0);
             default:
                 assert(0);
         }
@@ -134,9 +139,10 @@ static void emit_intcast(Type *from) {
             emit("and #$00ff");
             if (! from->usig) {
                 /* sign-extend */
-                emit("bpl :");
+                char *l = make_label();
+                emit("bpl %s", l);
                 emit("eor #$ff00");
-                emit_noident(":\t");
+                emit_label(l);
             }
 
             /* fall-through */
@@ -150,7 +156,7 @@ static void emit_intcast(Type *from) {
     }
 }
 
-static void emit_load_conv(Type *to, Type *from) {
+static void emit_load_convert(Type *to, Type *from) {
     if (is_inttype(from) && to->kind == KIND_FLOAT) {
         assert(0);
     } else if (is_inttype(from) && to->kind == KIND_DOUBLE) {
@@ -169,7 +175,7 @@ static void emit_load_conv(Type *to, Type *from) {
 
 static void emit_conv(Node *node) {
     emit_expr(node->operand);
-    emit_load_conv(node->ty, node->operand->ty);
+    emit_load_convert(node->ty, node->operand->ty);
 }
 
 static void emit_save_literal(Node *node, Type *totype, int off) {
@@ -179,11 +185,15 @@ static void emit_save_literal(Node *node, Type *totype, int off) {
         case KIND_SHORT:
             assert(0);
         case KIND_INT:
+        case KIND_PTR:
+            emit("tay");
+            emit("lda #$%04x", node->ival);
+            emit("sta $%02X,S", 1 + stackpos - off);
+            emit("tya");
+            break;
         case KIND_LONG:
         case KIND_LLONG:
-        case KIND_PTR:
             assert(0);
-
         case KIND_FLOAT:
         case KIND_DOUBLE:
         case KIND_LDOUBLE:
@@ -317,14 +327,18 @@ static void emit_lsave(Type *ty, int off) {
         case KIND_BOOL:
         case KIND_CHAR:
         case KIND_SHORT:
-            assert(0);
+            emit("sep #$20");
+            emit(".a8");
+            emit("sta $%02X,S", 1 + stackpos - off);
+            emit("rep #$20");
+            emit(".a16");
+            break;
         case KIND_INT:
-            assert(0);
-        case KIND_LONG:
-            assert(0);
         case KIND_PTR:
             emit("sta $%02X,S", 1 + stackpos - off);
             break;
+        case KIND_LONG:
+            assert(0);
         case KIND_LLONG:
             assert(0);
         case KIND_FLOAT:
@@ -336,22 +350,26 @@ static void emit_lsave(Type *ty, int off) {
     }
 }
 
+static void emit_assign_deref(Node *node) {
+    /* this is generally really bad */
+    emit("pha");
+    stackpos += 2;
+    emit_expr(node->operand);
+    // assert(node->operand->ty->ptr->size == 2);
+    emit("pha");
+    stackpos += 2;
+    emit("lda $3,S");
+    emit("ldy #$0000");
+    emit("sta ($1,S),Y");
+    emit("ply");
+    emit("ply");
+    stackpos -= 4;
+}
+
 static void emit_store(Node *node) {
     switch(node->kind) {
         case AST_DEREF:
-            /* this is bad */
-            emit("pha");
-            stackpos += 2;
-            emit_expr(node->operand);
-            // assert(node->operand->ty->ptr->size == 2);
-            emit("pha");
-            stackpos += 2;
-            emit("lda $3,S");
-            emit("ldy #$0000");
-            emit("sta ($1,S),Y");
-            emit("ply");
-            emit("ply");
-            stackpos -= 4;
+            emit_assign_deref(node);
             break;
         case AST_STRUCT_REF:
             assert(0);
@@ -361,7 +379,7 @@ static void emit_store(Node *node) {
             break;
         case AST_GVAR:
             /* FIXME: wrong on so many levels */
-            emit("sta %s", node->glabel);
+            emit("sta a:%s", node->glabel);
             break;
         default: error("internal error");
     }
@@ -370,7 +388,7 @@ static void emit_store(Node *node) {
 void emit_assign(Node *node) {
     assert(node->left->ty->kind != KIND_STRUCT);
     emit_expr(node->right);
-    /* emit_load_convert */
+    emit_load_convert(node->ty, node->right->ty);
     emit_store(node->left);
 }
 
@@ -385,18 +403,17 @@ static void emit_gload(Type *ty, char *label, int off) {
     } else if (ty->kind == KIND_DOUBLE || ty->kind == KIND_LDOUBLE) {
         assert(0);
     } else {
-        assert(off == 0);
         switch (ty->size) {
             case 1:
-                emit("lda %s", label);
+                emit("lda %s + %u", label, off);
                 emit("and $00ff");
                 break;
             case 2:
-                emit("lda %s", label);
+                emit("lda %s + %u", label, off);
                 break;
             case 4:
-                emit("lda %s", label);
-                emit("ldx %s + 1", label);
+                emit("lda %s + %u", label, off);
+                emit("ldx %s + %u 2", label, off);
                 break;
             default:
                 assert(0);
@@ -438,6 +455,182 @@ static void emit_func_call(Node *node) {
     // emit_noident(";");
 }
 
+static void emit_deref(Node *node) {
+    emit_expr(node->operand);
+    assert(node->operand->ty->ptr->kind != KIND_ARRAY);
+    assert(node->operand->ty->ptr->kind != KIND_FLOAT);
+    assert(node->operand->ty->ptr->kind != KIND_DOUBLE);
+    assert(node->operand->ty->ptr->kind != KIND_LDOUBLE);
+
+    emit("pha");
+    stackpos += 2;
+
+    switch(node->operand->ty->ptr->size) {
+        case 1:
+            emit("ldy #$0000"); /* offset */
+            emit("lda ($1,S),Y");
+            emit("and #$00FF");
+            break;
+        case 2:
+            emit("ldy #$0000"); /* offset */
+            emit("lda ($1,S),Y");
+            break;
+        case 3:
+            emit("ldy #$0001"); /* offset */
+            emit("lda ($1,S),Y");
+            emit("tax");
+            emit("dey");
+            emit("lda ($1,S),Y");
+            break;
+    }
+
+    emit("ply");
+    stackpos -= 2;
+
+    emit_load_convert(node->ty, node->operand->ty->ptr);
+}
+
+static void emit_pointer_arith(char kind, Node *left, Node *right) {
+    emit_expr(left);
+    emit("pha");
+    stackpos += 2;
+    emit_expr(right);
+
+    int size = left->ty->ptr->size;
+    if (size > 1) {
+        assert(size % 2 == 0);
+        for (size_t i = 0; i < size; i += 2) {
+            emit("asl");
+        }
+    }
+
+    /* 16-bit arithmatic */
+    if (kind == '+') {
+        emit("clc");
+        emit("adc $1,S");
+    } else if (kind == '-') {
+        emit("sec");
+        emit("sbc $1,S");
+    }
+
+    emit("ply");
+    stackpos -= 2;
+}
+
+/* ++X / --X */
+/* FIXME: assumes size = 2 */
+static void emit_pre_op(Node *node, char op) {
+    assert((op == '+') || (op == '-'));
+    emit_expr(node->operand);
+    if (node->ty->ptr != NULL) {
+        if (node->ty->ptr->size == 1) {
+            if (op == '+') {
+                emit("inc");
+            } else if (op == '-') {
+                emit("dec");
+            }
+        } else {
+            assert(0);
+        }
+    } else {
+        if (op == '+') {
+            emit("inc");
+        } else if (op == '-') {
+            emit("dec");
+        }
+    }
+    emit_store(node->operand);
+}
+
+/* X++ / X-- */
+/* FIXME: assumes size = 2 */
+static void emit_post_op(Node *node, char op) {
+    emit_expr(node->operand);
+    emit("pha");
+    stackpos += 2;
+    if (node->ty->ptr != NULL) {
+        if (node->ty->ptr->size == 1) {
+            if (op == '+') {
+                emit("inc");
+            } else if (op == '-') {
+                emit("dec");
+            }
+        } else {
+            assert(0);
+        }
+    } else {
+        if (op == '+') {
+            emit("inc");
+        } else if (op == '-') {
+            emit("dec");
+        }
+    }
+    emit_store(node->operand);
+    emit("pla");
+    stackpos -= 2;
+}
+
+static void emit_ternary(Node *node) {
+    emit_expr(node->cond);
+    const char *ne = make_label();
+    emit("cmp #$0000");
+    emit("beq %s", ne);
+
+    if (node->then) {
+        emit_expr(node->then);
+    }
+
+    if (node->els) {
+        const char *end = make_label();
+        emit("bra %s", end);
+        emit_label(ne);
+        emit_expr(node->els);
+        emit_label(end);
+    } else {
+        emit_label(ne);
+    }
+}
+
+/* FIXME: this is inefficient ... */
+static void emit_cmp_eq(Node *node) {
+    assert(node->left->ty->size == 2);
+    assert(node->right->ty->size == 2);
+    emit_expr(node->left);
+    emit("pha");
+    stackpos += 2;
+    emit_expr(node->right);
+    emit("sec");
+    emit("sbc $1,S");
+
+    const char *cmp_true = make_label();
+    const char *cmp_cont = make_label();
+    emit("beq %s", cmp_true);
+    emit("lda #$0000"); /* false */
+    emit("bra %s", cmp_cont);
+    emit_noident("%s:", cmp_true);
+    emit("lda #$0001"); /* true */
+    emit_noident("%s:", cmp_cont);
+
+    emit("ply");
+    stackpos -= 2;
+}
+
+static void emit_load_struct_ref(Node *struc, Type *field, int off) {
+    switch (struc->kind) {
+        case AST_LVAR:
+            assert(0);
+        case AST_GVAR:
+            emit_gload(field, struc->glabel, field->offset + off);
+            break;
+        case AST_STRUCT_REF:
+            assert(0);
+        case AST_DEREF:
+            assert(0);
+        default:
+            error("internal error %s", node2s(struc));
+    }
+}
+
 void emit_expr(Node *node) {
     switch (node->kind) {
         case AST_LITERAL:
@@ -466,16 +659,20 @@ void emit_expr(Node *node) {
             assert(0);
             break;
         case AST_DEREF:
-            assert(0);
+            emit_deref(node);
             break;
         case AST_IF:
         case AST_TERNARY:
-            assert(0);
+            emit_ternary(node);
+            break;
         case AST_GOTO:
-            assert(0);
+            assert(node->newlabel);
+            emit("jmp %s", node->newlabel);
             break;
         case AST_LABEL:
-            assert(0);
+            if (node->newlabel) {
+                emit_label(node->newlabel);
+            }
             break;
         case AST_RETURN:
             emit_return(node);
@@ -486,29 +683,83 @@ void emit_expr(Node *node) {
             }
             break;
         case AST_STRUCT_REF:
+            emit_load_struct_ref(node->struc, node->ty, 0);
+            break;
+        case OP_PRE_INC:
+            emit_pre_op(node, '+');
+            break;
+        case OP_PRE_DEC:
+            emit_pre_op(node, '-');
+            break;
+        case OP_POST_INC:
+            emit_post_op(node, '+');
+            break;
+        case OP_POST_DEC:
+            emit_post_op(node, '-');
+            break;
+        case '!':
+            assert(0);
+        case '&':
+            assert(0);
+        case '|':
+            assert(0);
+        case '~':
+            assert(0);
+        case OP_LOGAND:
+            assert(0);
+        case OP_LOGOR:
             assert(0);
         case OP_CAST:
             emit_expr(node->operand);
-            /* emit_load_convert */
+            emit_load_convert(node->ty, node->operand->ty);
             break;
+        case ',':
+            assert(0);
         case '=':
             emit_assign(node);
             break;
         case OP_LABEL_ADDR:
             assert(0);
         default:
+            if (node->ty->kind == KIND_PTR) {
+                emit_pointer_arith(node->kind, node->left, node->right);
+                break;
+            } else if (node->kind == '<') {
+                assert(0);
+            } else if (node->kind == OP_EQ) {
+                emit_cmp_eq(node);
+                break;
+            } else if (node->kind == OP_LE) {
+                assert(0);
+            } else if (node->kind == OP_NE) {
+                assert(0);
+            }
             if (is_inttype(node->ty)) {
                 emit_binop_int(node);
                 break;
             }
+
+            printf("node->kind = %u\n", node->kind);
             assert(0);
     }
+}
+
+static void emit_text_segment(void) {
+    emit_noident(".segment \"C_CODE\":far");
+}
+
+static void emit_data_segment(void) {
+    emit_noident(".segment \"C_DATA\":absolute");
+}
+
+static void emit_bss_segment(void) {
+    emit_noident(".segment \"C_BSS\":absolute");
 }
 
 void emit_func(Node *func) {
     /* function prologue */
     emit_noident("; function!");
-    emit_noident(".text");
+    emit_text_segment();
     if (!func->ty->isstatic) {
         emit_noident(".global %s", func->fname);
     }
@@ -595,6 +846,20 @@ static void emit_data_addr(Node *operand, int depth) {
     assert(0);
 }
 
+static void emit_label(const char *s) {
+    emit_noident("%s:", s);
+}
+
+static void emit_data_charptr(const char *s, int depth) {
+    assert(depth == 0);
+    const char *label = make_label();
+    emit_noident(".addr %s", label);
+    emit_data_segment();
+    emit_label(label);
+    emit_noident(".byte \"%s\"", quote_cstring(s));
+    emit_noident(".byte $00");
+}
+
 static void emit_data_primtype(Type *ty, Node *val, int depth) {
     switch(ty->kind) {
         case KIND_BOOL:
@@ -605,6 +870,25 @@ static void emit_data_primtype(Type *ty, Node *val, int depth) {
             break;
         case KIND_INT:
             emit(".word $%04X", eval_intexpr(val, NULL));
+            break;
+        case KIND_PTR:
+            if (val->kind == OP_LABEL_ADDR) {
+                emit_noident(".addr %s", val->newlabel);
+            }
+            bool is_char_ptr = (val->operand->ty->kind == KIND_ARRAY && val->operand->ty->ptr->kind == KIND_CHAR);
+            if (is_char_ptr) {
+                emit_data_charptr(val->operand->sval, depth);
+            } else if (val->kind == AST_GVAR) {
+                emit_noident(".addr %s", val->glabel);
+            } else {
+                Node *base = NULL;
+                int v = eval_intexpr(val, &base);
+                if (base == NULL) {
+                    emit_noident(".word $%04x", v);
+                    break;
+                }
+                assert(0);
+            }
             break;
         default:
             assert(0);
@@ -642,17 +926,17 @@ static void emit_global_var(Node *v) {
     emit_noident("; global variable");
     if (v->declinit) {
         /* .data */
-        emit_noident(".data");
+        emit_data_segment();
         if (!v->declvar->ty->isstatic) {
-            emit_noident(".global %s", v->declvar->glabel);
+            emit_noident(".global %s : abs", v->declvar->glabel);
         }
         emit_noident("%s:", v->declvar->glabel);
         do_emit_data(v->declinit, v->declvar->ty->size, 0, 0);
     } else {
         /* .bss */
-        emit_noident(".bss");
+        emit_bss_segment();
         if (!v->declvar->ty->isstatic) {
-            emit_noident(".global %s", v->declvar->glabel);
+            emit_noident(".global %s : abs", v->declvar->glabel);
         }
         emit_noident("%s:", v->declvar->glabel);
         emit_noident(".res %u", v->declvar->ty->size);
@@ -663,6 +947,7 @@ static bool first = true;
 void emit_toplevel(Node *v) {
     if (first) {
         emit_noident("; 8cc : ca65 assembly output");
+        emit_noident(".feature string_escapes");
         emit_noident(".setcpu \"65816\"");
         emit_noident(".A16");
         emit_noident(".I16");
