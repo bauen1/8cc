@@ -350,20 +350,74 @@ static void emit_lsave(Type *ty, int off) {
     }
 }
 
+static void emit_gsave(const char *label, Type *ty, int off) {
+    assert(ty->kind != KIND_ARRAY);
+    // maybe_convert_bool(ty);
+    // maybe_emit_bitshift_save(ty, addr);
+
+    switch (ty->size) {
+        case 1:
+            emit("sep #$20");
+            emit(".a8");
+            emit("sta %s + %u", label, off);
+            emit("rep #$20");
+            emit(".a16");
+            break;
+        case 2:
+            emit("staa %s + %u", label, off);
+            break;
+        case 4:
+            emit("staa %s + %u", label, off);
+            emit("stx %s + %u 2", label, off);
+            break;
+        default:
+            assert(0);
+    }
+}
+
+/* FIXME: wrong, assumes too many things, will break */
+static void do_emit_assign_deref(Type *ty, int off) {
+    assert((ty->size == 2) || (ty->size == 1));
+
+    emit("pha");
+    stackpos += 2;
+
+    emit("lda $3,S");
+    emit("ldy #$%04x", off);
+    emit("sta ($1,S),Y");
+
+    emit("ply");
+    emit("ply");
+    stackpos -= 4;
+}
+
+static void emit_assign_struct_ref(Node *struc, Type *field, int off) {
+    switch(struc->kind) {
+        case AST_LVAR:
+            assert(0);
+        case AST_GVAR:
+            emit_gsave(struc->glabel, field, field->offset + off);
+            break;
+        case AST_STRUCT_REF:
+            assert(0);
+        case AST_DEREF:
+            emit("pha");
+            stackpos += 2;
+            emit_expr(struc->operand);
+            do_emit_assign_deref(field, field->offset + off);
+            break;
+        default:
+            error("internal error %s", node2s(struc));
+    }
+}
+
 static void emit_assign_deref(Node *node) {
     /* this is generally really bad */
     emit("pha");
     stackpos += 2;
     emit_expr(node->operand);
     // assert(node->operand->ty->ptr->size == 2);
-    emit("pha");
-    stackpos += 2;
-    emit("lda $3,S");
-    emit("ldy #$0000");
-    emit("sta ($1,S),Y");
-    emit("ply");
-    emit("ply");
-    stackpos -= 4;
+    do_emit_assign_deref(node->operand->ty, 0);
 }
 
 static void emit_store(Node *node) {
@@ -372,7 +426,8 @@ static void emit_store(Node *node) {
             emit_assign_deref(node);
             break;
         case AST_STRUCT_REF:
-            assert(0);
+            emit_assign_struct_ref(node->struc, node->ty, 0);
+            break;
         case AST_LVAR:
 			ensure_lvar_init(node);
             emit_lsave(node->ty, node->loff);
@@ -631,6 +686,31 @@ static void emit_load_struct_ref(Node *struc, Type *field, int off) {
     }
 }
 
+static void emit_addr(Node *node) {
+    switch (node->kind) {
+        case AST_LVAR:
+            ensure_lvar_init(node);
+            assert(0);
+            break;
+        case AST_GVAR:
+            emit("lda #%s", node->glabel);
+            break;
+        case AST_DEREF:
+            emit_expr(node->operand);
+            break;
+        case AST_STRUCT_REF:
+            emit_addr(node->struc);
+            emit("clc");
+            emit("adc #$%04x", node->ty->offset);
+            break;
+        case AST_FUNCDESG:
+            emit("lda #%s", node->fname);
+            break;
+        default:
+            error("internal error: %s", node2s(node));
+    }
+}
+
 void emit_expr(Node *node) {
     switch (node->kind) {
         case AST_LITERAL:
@@ -643,7 +723,8 @@ void emit_expr(Node *node) {
             emit_gvar(node);
             break;
         case AST_FUNCDESG:
-            assert(0);
+            emit_addr(node);
+            break;
         case AST_FUNCALL:
             emit_func_call(node);
             break;
@@ -656,7 +737,7 @@ void emit_expr(Node *node) {
             emit_conv(node);
             break;
         case AST_ADDR:
-            assert(0);
+            emit_addr(node->operand);
             break;
         case AST_DEREF:
             emit_deref(node);
