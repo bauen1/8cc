@@ -171,6 +171,7 @@ typedef struct Type {
     int size;
     int align;
     bool usig; // true if unsigned
+    bool isextern;
     bool isstatic;
     // pointer or array
     struct Type *ptr;

@@ -91,8 +91,6 @@ void emit_lload(Type *ty, int off) {
                 emit("tax");
                 emit("lda $%02x,S", 1 + stackpos - off);
                 break;
-            case 0:
-                assert(0);
             default:
                 assert(0);
         }
@@ -267,7 +265,9 @@ static void ensure_lvar_init(Node *node) {
 }
 
 static void emit_decl(Node *node) {
-    if (node->declinit) {
+    if (node->declvar->ty->isextern) {
+        emit_noident(".import %s", node->declvar->glabel);
+    } else if (node->declinit) {
         emit_decl_init(node->declinit, node->declvar->loff, node->declvar->ty->size);
     }
 }
@@ -1003,6 +1003,7 @@ static void do_emit_data(Vector *inits, int size, int off, int depth) {
 
     emit_zero(size);
 }
+
 static void emit_global_var(Node *v) {
     emit_noident("; global variable");
     if (v->declinit) {
@@ -1024,6 +1025,14 @@ static void emit_global_var(Node *v) {
     }
 }
 
+static void emit_global_decl(Node *v) {
+    if (v->declvar->ty->isextern) {
+        emit_noident(".import %s", v->declvar->glabel);
+    } else {
+        emit_global_var(v);
+    }
+}
+
 static bool first = true;
 void emit_toplevel(Node *v) {
     if (first) {
@@ -1039,7 +1048,7 @@ void emit_toplevel(Node *v) {
     if (v->kind == AST_FUNC) {
         emit_func(v);
     } else if (v->kind == AST_DECL) {
-        emit_global_var(v);
+        emit_global_decl(v);
     } else {
         error("internal error");
     }

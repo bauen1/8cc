@@ -2200,6 +2200,7 @@ static void read_decl(Vector *block, bool isglobal) {
         Type *ty = read_declarator(&name, copy_incomplete_type(basetype), NULL, DECL_BODY);
             assert(ty != NULL);
         ty->isstatic = (sclass == S_STATIC);
+        ty->isextern = (sclass == S_EXTERN);
         if (sclass == S_TYPEDEF) {
             ast_typedef(ty, name);
         } else if (ty->isstatic && !isglobal) {
@@ -2207,9 +2208,16 @@ static void read_decl(Vector *block, bool isglobal) {
             read_static_local_var(ty, name);
         } else {
             ensure_not_void(ty);
-            Node *var = (isglobal ? ast_gvar : ast_lvar)(ty, name);
+            Node *var;
+            if (isglobal || ty->isextern) {
+                var = ast_gvar(ty, name);
+            } else {
+                var = ast_lvar(ty, name);
+            }
             if (next_token('=')) {
                 vec_push(block, ast_decl(var, read_decl_init(ty)));
+            } else if (sclass == S_EXTERN) {
+                vec_push(block, ast_decl(var, NULL));
             } else if (sclass != S_EXTERN && ty->kind != KIND_FUNC) {
                 vec_push(block, ast_decl(var, NULL));
             }
