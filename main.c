@@ -13,7 +13,7 @@ static char *outfile;
 static char *asmfile;
 static bool dumpast;
 static bool cpponly;
-static bool dumpasm;
+static bool dumpasm = false;
 static bool dontlink;
 static Buffer *cppdefs;
 static Vector *tmpfiles = &EMPTY_VECTOR;
@@ -142,6 +142,10 @@ static void parseopt(int argc, char **argv) {
 
     if (!dumpast && !cpponly && !dumpasm && !dontlink)
         error("One of -a, -c, -E or -S must be specified");
+
+    if (!dumpasm) {
+        error("-S is required!");
+    }
     infile = argv[optind];
 }
 
@@ -190,19 +194,5 @@ int main(int argc, char **argv) {
 
     close_output_file();
 
-    if (!dumpast && !dumpasm) {
-        if (!outfile)
-            outfile = replace_suffix(base(infile), 'o');
-        pid_t pid = fork();
-        if (pid < 0) perror("fork");
-        if (pid == 0) {
-            execlp("as", "as", "-o", outfile, "-c", asmfile, (char *)NULL);
-            perror("execl failed");
-        }
-        int status;
-        waitpid(pid, &status, 0);
-        if (status < 0)
-            error("as failed");
-    }
     return 0;
 }
