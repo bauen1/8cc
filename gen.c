@@ -83,7 +83,10 @@ void emit_lload(Type *ty, int off) {
     assert(ty->bitsize <= 0);
 
     if (ty->kind == KIND_ARRAY) {
-        assert(0);
+        /* see emit_addr */
+        emit("tsc");
+        emit("clc");
+        emit("adc #$%04x", (1 + stackpos - off));
     } else if (ty->kind == KIND_FLOAT) {
         assert(0);
     } else if (ty->kind == KIND_DOUBLE || ty->kind == KIND_LDOUBLE) {
