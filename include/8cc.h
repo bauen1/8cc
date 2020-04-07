@@ -24,15 +24,11 @@
 #define __STDC_UTF_32__ 1
 #define __STDC_VERSION__ 201112L
 #define __STDC__ 1
-#define __amd64 1
-#define __amd64__ 1
 #define __gnu_linux__ 1
 #define __linux 1
 #define __linux__ 1
 #define __unix 1
 #define __unix__ 1
-#define __x86_64 1
-#define __x86_64__ 1
 #define linux 1
 
 #define __alignof__ alignof
