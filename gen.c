@@ -365,7 +365,14 @@ static void emit_lsave(Type *ty, int off) {
             emit("sta $%02X,S", 1 + stackpos - off);
             break;
         case KIND_LONG:
-            assert(0);
+            emit("sta $%02X,S", 1 + stackpos - off);
+            emit("pha");
+            stackpos += 2;
+            emit("txa");
+            emit("sta $%02X,S", 1 + stackpos - off + 2);
+            emit("pla");
+            stackpos -= 2;
+            break;
         case KIND_LLONG:
             assert(0);
         case KIND_FLOAT:
@@ -395,7 +402,7 @@ static void emit_gsave(const char *label, Type *ty, int off) {
             break;
         case 4:
             emit("sta %s + %u", label, off);
-            emit("stx %s + %u 2", label, off);
+            emit("stx %s + %u + 2", label, off);
             break;
         default:
             assert(0);
@@ -422,13 +429,14 @@ static void emit_assign_struct_ref(Node *struc, Type *field, int off) {
     switch(struc->kind) {
         case AST_LVAR:
             ensure_lvar_init(struc);
-            emit_lsave(field, struc->loff + field->offset + off);
+            emit_lsave(field, struc->loff - field->offset + off);
             break;
         case AST_GVAR:
             emit_gsave(struc->glabel, field, field->offset + off);
             break;
         case AST_STRUCT_REF:
-            assert(0);
+            emit_assign_struct_ref(struc->struc, field, off + struc->ty->offset);
+            break;
         case AST_DEREF:
             emit("pha");
             stackpos += 2;
@@ -480,8 +488,7 @@ static void emit_gload(Type *ty, char *label, int off) {
     assert(ty->bitsize <= 0);
 
     if (ty->kind == KIND_ARRAY) {
-        /* TODO: should be easy to implement */
-        assert(0);
+        emit("lda %s + %u", label, off);
     } else if (ty->kind == KIND_FLOAT) {
         assert(0);
     } else if (ty->kind == KIND_DOUBLE || ty->kind == KIND_LDOUBLE) {
@@ -499,8 +506,11 @@ static void emit_gload(Type *ty, char *label, int off) {
                 emit("lda %s + %u", label, off);
                 emit("ldx %s + %u 2", label, off);
                 break;
-            default:
+            case 8:
                 assert(0);
+                break;
+            default:
+                error("internal error");
         }
     }
 }
@@ -512,10 +522,6 @@ static void emit_gvar(Node *node) {
 static void emit_func_call(Node *node) {
     bool is_ptr_call = (node->kind == AST_FUNCPTR_CALL);
     int original_stackpos = stackpos;
-
-    assert(!(node->kind == AST_FUNCPTR_CALL));
-
-    // Vector *args = vec_reverse(node->args);
 
     for (size_t i = 0; i < vec_len(node->args); i++) {
         Node *v = vec_get(node->args, i);
@@ -716,35 +722,85 @@ static void emit_cmp_eq(Node *node) {
 /* FIXME: see above */
 /* left != right */
 static void emit_cmp_ne(Node *node) {
+    printf("%s: node->left->ty->size = %u\n", __func__, node->left->ty->size);
     assert(node->left->ty->size == node->right->ty->size);
-    if (node->left->ty->size == 3) {
+
+    if (node->left->ty->size == 2) {
+        emit_expr(node->left);
+        emit("pha");
+        stackpos += 2;
+        emit_expr(node->right);
+        emit("cmp $1,S");
+
+        const char *cmp_false = make_label();
+        const char *cmp_cont = make_label();
+        emit("beq %s", cmp_false);
+        emit("lda #$0001"); /* true */
+        emit("bra %s", cmp_cont);
+        emit_noident("%s:", cmp_false);
+        emit("lda #$0000"); /* false */
+        emit_noident("%s:", cmp_cont);
+
+        emit("ply");
+        stackpos -= 2;
+    } else if (node->left->ty->size == 4) {
+        const char * const bool_false = make_label();
+        const char * const bool_end = make_label();
+
+        emit_expr(node->left);
+        emit("pha");
+        emit("phx");
+        stackpos += 4;
+        emit_expr(node->right);
+        emit("cmp $3,S");
+        emit("beq %s", bool_false);
+        emit("txa");
+        emit("cmp $1,S");
+        emit("beq %s", bool_false);
+
+        emit("lda #$0001"); /* true */
+        emit("bra %s", bool_end);
+        emit_label(bool_false);
+        emit("lda #$0000");
+        emit_label(bool_end);
+
+        emit("ply");
+        emit("ply");
+        stackpos -= 2;
+    } else {
         assert(0);
     }
-    assert(node->left->ty->size == 2);
-    assert(node->right->ty->size == 2);
-    emit_expr(node->left);
-    emit("pha");
-    stackpos += 2;
-    emit_expr(node->right);
-    emit("cmp $1,S");
 
-    const char *cmp_false = make_label();
-    const char *cmp_cont = make_label();
-    emit("beq %s", cmp_false);
-    emit("lda #$0001"); /* true */
-    emit("bra %s", cmp_cont);
-    emit_noident("%s:", cmp_false);
-    emit("lda #$0000"); /* false */
-    emit_noident("%s:", cmp_cont);
-
-    emit("ply");
-    stackpos -= 2;
 }
 
 /* FIXME: see above */
 /* left < right */
 static void emit_cmp_lt(Node *node) {
-    assert(0);
+    assert(node->left->ty->size == node->right->ty->size);
+    assert(node->left->ty->size == 2);
+    assert(node->right->ty->size == 2);
+    assert(node->left->ty->usig);
+    assert(node->right->ty->usig);
+
+    emit_expr(node->right);
+    emit("pha");
+    stackpos += 2;
+
+    emit_expr(node->left);
+    emit("cmp $1,S");
+
+    const char * const bool_true = make_label();
+    const char * const bool_end = make_label();
+
+    emit("bcc %s", bool_true); /* blt branch if less than */
+    emit("lda #$0000");
+    emit("bra %s", bool_end);
+    emit_label(bool_true);
+    emit("lda #$0001");
+    emit_label(bool_end);
+
+    emit("ply");
+    stackpos -= 2;
 }
 
 /* FIXME: see above */
@@ -757,13 +813,14 @@ static void emit_load_struct_ref(Node *struc, Type *field, int off) {
     switch (struc->kind) {
         case AST_LVAR:
             ensure_lvar_init(struc);
-            emit_lload(field, struc->loff + field->offset + off);
+            emit_lload(field, struc->loff - field->offset + off);
             break;
         case AST_GVAR:
             emit_gload(field, struc->glabel, field->offset + off);
             break;
         case AST_STRUCT_REF:
-            assert(0);
+            emit_load_struct_ref(struc->struc, field, struc->ty->offset + off);
+            break;
         case AST_DEREF:
             emit_expr(struc->operand);
             emit_deref_a(field->size, field->offset + off);
@@ -844,12 +901,43 @@ static void emit_lognot(Node *node) {
     emit_label(bool_cont);
 }
 
+/* left && right */
 static void emit_logand(Node *node) {
-    assert(0);
+    assert(node->left->ty->size == 2);
+    assert(node->right->ty->size == 2);
+
+    const char * const bool_end = make_label();
+    emit_expr(node->left);
+    emit("cmp #$0000");
+    emit("beq %s", bool_end);
+
+    emit_expr(node->right);
+    emit("cmp #$0000");
+    emit("beq %s", bool_end);
+    emit("lda #$0001");
+    emit_label(bool_end);
 }
 
+/* left || right */
 static void emit_logor(Node *node) {
-    assert(0);
+    assert(node->left->ty->size == 2);
+    assert(node->right->ty->size == 2);
+
+    const char * const bool_true = make_label();
+    const char * const bool_end = make_label();
+
+    emit_expr(node->left);
+    emit("cmp #$0000");
+    emit("bne %s", bool_true);
+
+    emit_expr(node->right);
+    emit("cmp #$0000");
+    emit("beq %s", bool_end);
+
+    emit_label(bool_true);
+    emit("lda #$0001");
+
+    emit_label(bool_end);
 }
 
 static void emit_binop_not(Node *node) {
@@ -1040,6 +1128,7 @@ void emit_func(Node *func) {
         for (size_t i = 0; i < vec_len(func->localvars); i++) {
             Node *v = vec_get(func->localvars, i);
             const size_t size = v->ty->size;
+            assert(v->ty->size % v->ty->align == 0);
             localarea += size;
             v->loff = localarea;
             emit_noident("; local offset = %#x\n", v->loff);
@@ -1057,7 +1146,9 @@ void emit_func(Node *func) {
     }
 
     /* function body */
+    const size_t old_stackpos = stackpos;
     emit_expr(func->body);
+    assert(old_stackpos == stackpos);
 
     /* function epilog */
     emit_ret();
@@ -1068,7 +1159,16 @@ static void emit_zero(size_t size) {
 }
 
 static void emit_data_addr(Node *operand, int depth) {
-    assert(0);
+    switch(operand->kind) {
+        case AST_LVAR:
+            assert(0);
+            break;
+        case AST_GVAR:
+            emit_noident(".word %s", operand->glabel);
+            break;
+        default:
+            error("internal error");
+    }
 }
 
 static void emit_label(const char *s) {
@@ -1112,7 +1212,17 @@ static void emit_data_primtype(Type *ty, Node *val, int depth) {
                     emit_noident(".word $%04x", v);
                     break;
                 }
-                assert(0);
+
+                Type * const ty = base->ty;
+                if (base->kind == AST_CONV || base->kind == AST_ADDR) {
+                    base = base->operand;
+                }
+
+                if (base->kind != AST_GVAR) {
+                    error("global variable expected, but got %s", node2s(base));
+                }
+                assert(ty->ptr);
+                emit_noident(".word %s+%u", base->glabel, v * ty->ptr->size);
             }
             break;
         default:
