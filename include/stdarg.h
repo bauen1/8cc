@@ -3,6 +3,7 @@
 #ifndef __STDARG_H
 #define __STDARG_H
 
+#if defined(__x86_64__)
 /**
  * Refer this document for the x86-64 ABI.
  * http://www.x86-64.org/documentation/abi.pdf
@@ -48,5 +49,11 @@ static void *__va_arg_mem(__va_elem *ap) {
 // Workaround to load stdio.h properly
 #define __GNUC_VA_LIST 1
 typedef va_list __gnuc_va_list;
+
+#else
+
+#error "stdarg not implemented"
+
+#endif
 
 #endif

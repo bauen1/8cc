@@ -3,6 +3,8 @@
 #ifndef __STDFLOAT_H
 #define __STDFLOAT_H
 
+#error "floats are not supported!"
+
 #define DECIMAL_DIG 21
 #define FLT_EVAL_METHOD 0 // C11 5.2.4.2.2p9
 #define FLT_RADIX 2
