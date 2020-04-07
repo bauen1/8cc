@@ -3,7 +3,7 @@ OBJS=cpp.o debug.o dict.o gen.o lex.o vector.o parse.o buffer.o map.o \
      error.o path.o file.o set.o encoding.o
 TESTS := $(patsubst %.c,%.bin,$(filter-out test/testmain.c,$(wildcard test/*.c)))
 ECC=./8cc
-override CFLAGS += -DBUILD_DIR='"$(shell pwd)"'
+override CFLAGS += -DBUILD_DIR='"$(shell pwd)"' -DSYSROOT_DIR='"/sysroot"'
 
 LDFLAGS += -lubsan
 
