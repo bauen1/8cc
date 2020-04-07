@@ -46,6 +46,18 @@ static void emit_line(unsigned int line, const char *fmt, ...) {
 
 static int stackpos = 0;
 
+static void emit_text_segment(void) {
+    emit_noident(".segment \"C_CODE\":far");
+}
+
+static void emit_data_segment(void) {
+    emit_noident(".segment \"C_DATA\":absolute");
+}
+
+static void emit_bss_segment(void) {
+    emit_noident(".segment \"C_BSS\":absolute");
+}
+
 void emit_literal(Node *node) {
     switch(node->ty->kind) {
         case KIND_BOOL:
@@ -690,7 +702,10 @@ static void emit_addr(Node *node) {
     switch (node->kind) {
         case AST_LVAR:
             ensure_lvar_init(node);
-            assert(0);
+            emit("tsc");
+            /* see emit_lload: lda [1 + stackpos - node->loff],S */
+            emit("clc");
+            emit("adc #$%04x", (1 + stackpos - node->loff));
             break;
         case AST_GVAR:
             emit("lda #%s", node->glabel);
@@ -823,18 +838,6 @@ void emit_expr(Node *node) {
             printf("node->kind = %u\n", node->kind);
             assert(0);
     }
-}
-
-static void emit_text_segment(void) {
-    emit_noident(".segment \"C_CODE\":far");
-}
-
-static void emit_data_segment(void) {
-    emit_noident(".segment \"C_DATA\":absolute");
-}
-
-static void emit_bss_segment(void) {
-    emit_noident(".segment \"C_BSS\":absolute");
 }
 
 void emit_func(Node *func) {
