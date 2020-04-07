@@ -2216,7 +2216,8 @@ static void read_decl(Vector *block, bool isglobal) {
             }
             if (next_token('=')) {
                 vec_push(block, ast_decl(var, read_decl_init(ty)));
-            } else if (sclass == S_EXTERN) {
+            } else if ((sclass == S_EXTERN) || (isglobal && !ty->isstatic)) {
+                ty->isextern = true; /* FIXME: a bit hackish */
                 vec_push(block, ast_decl(var, NULL));
             } else if (sclass != S_EXTERN && ty->kind != KIND_FUNC) {
                 vec_push(block, ast_decl(var, NULL));

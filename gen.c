@@ -282,7 +282,9 @@ static void ensure_lvar_init(Node *node) {
 static void emit_decl(Node *node) {
     if (node->declvar->ty->isextern) {
         emit_noident(".import %s", node->declvar->glabel);
-    } else if (node->declinit) {
+    }
+
+    if (node->declinit) {
         emit_decl_init(node->declinit, node->declvar->loff, node->declvar->ty->size);
     }
 }
@@ -379,10 +381,10 @@ static void emit_gsave(const char *label, Type *ty, int off) {
             emit(".a16");
             break;
         case 2:
-            emit("staa %s + %u", label, off);
+            emit("sta %s + %u", label, off);
             break;
         case 4:
-            emit("staa %s + %u", label, off);
+            emit("sta %s + %u", label, off);
             emit("stx %s + %u 2", label, off);
             break;
         default:
@@ -766,7 +768,7 @@ void emit_expr(Node *node) {
             break;
         case AST_GOTO:
             assert(node->newlabel);
-            emit("jmp %s", node->newlabel);
+            emit("jmp f:%s", node->newlabel);
             break;
         case AST_LABEL:
             if (node->newlabel) {
@@ -869,8 +871,9 @@ void emit_func(Node *func) {
             if (vec_len(func->params) > 1) {
                 for (size_t i = vec_len(func->params) - 1; i > 0; i--) {
                     Node *v = vec_get(func->params, i - 1);
+                    const size_t size = v->ty->size;
                     v->loff = -off;
-                    off += v->ty->size;
+                    off += size <= 2 ? 2 : size;
                 }
             }
 
@@ -878,19 +881,19 @@ void emit_func(Node *func) {
             Node *v = vec_get(func->params, vec_len(func->params) - 1);
 
             printf("v->ty->size = %u\n", v->ty->size);
-            /*assert((v->ty->size == 2) || (v->ty->size == 1));*/
+            assert(v->loff == 0);
             if (v->ty->size <= 2 ) {
                 emit("pha");
+                stackpos += 2;
+                v->loff = 2;
             } else if (v->ty->size == 4) {
                 emit("pha");
                 emit("phx");
+                stackpos += 4;
+                v->loff = 4;
             } else {
                 assert(0);
             }
-
-            stackpos += v->ty->size;
-            assert(v->loff == 0);
-            v->loff = v->ty->size;
         }
     }
 
@@ -905,14 +908,12 @@ void emit_func(Node *func) {
             emit_noident("; local offset = %#x\n", v->loff);
         }
 
-        size_t localarea_todo = localarea / 2;
-
         if (localarea % 2 != 0) {
             emit("phb");
             stackpos += 1;
         }
 
-        for (size_t i = 0; i < localarea_todo; i++) {
+        for (size_t i = 0; i < localarea / 2; i++) {
             emit("phx");
             stackpos += 2;
         }
@@ -1035,6 +1036,9 @@ static void emit_global_decl(Node *v) {
     if (v->declvar->ty->isextern) {
         emit_noident(".import %s", v->declvar->glabel);
     } else {
+        if (!v->declvar->ty->isstatic) {
+            emit_noident(".global %s:far", v->declvar->glabel);
+        }
         emit_global_var(v);
     }
 }
