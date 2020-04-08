@@ -184,6 +184,27 @@ static void emit_intcast(Type *from) {
     }
 }
 
+static void emit_to_bool(Type *from) {
+    assert(!is_flotype(from));
+
+    const char * const bool_true = make_label();
+    const char * const bool_done = make_label();
+
+    if (from->size == 2) {
+        emit("cmp #$0000");
+        emit("beq %s", bool_done);
+    } else if (from->size == 4) {
+        emit("cmp #$0000");
+        emit("bne %s", bool_true);
+        emit("cpx #$0000");
+        emit("beq %s", bool_done);
+    }
+
+    emit("lda #$0001");
+    emit_label(bool_done);
+    emit("ldx #$0000");
+}
+
 static void emit_load_convert(Type *to, Type *from) {
     if (is_inttype(from) && to->kind == KIND_FLOAT) {
         assert(0);
@@ -194,7 +215,7 @@ static void emit_load_convert(Type *to, Type *from) {
     } else if ((from->kind == KIND_DOUBLE || from->kind == KIND_LDOUBLE) && to->kind == KIND_FLOAT) {
         assert(0);
     } else if (to->kind == KIND_BOOL) {
-        assert(0);
+        emit_to_bool(from);
     } else if (is_inttype(from) && is_inttype(to)) {
         emit_intcast(from);
     } else if (is_inttype(to)) {
