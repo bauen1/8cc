@@ -445,7 +445,13 @@ void emit_binop_int(Node *node) {
                 emit("ldy #$0000");
                 emit("stz $00");
 
+                emit("phx");
+                stackpos += 2;
+
                 emit_expr(node->right);
+
+                emit("plx");
+                stackpos -= 2;
 
                 emit_label(div1);
                 emit("asl a");
@@ -472,6 +478,8 @@ void emit_binop_int(Node *node) {
 
             if (node->kind == '%') {
                 emit("txa");
+            } else {
+                emit("lda $00");
             }
 
             break;
@@ -783,6 +791,7 @@ static void emit_pre_op(Node *node, char op) {
             emit("dec");
         }
     }
+
     emit_store(node->operand);
 }
 
