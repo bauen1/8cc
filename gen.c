@@ -17,6 +17,8 @@ static void emit_label(const char *s);
 static void emit_pre_op(Node *node, char op);
 static void emit_post_op(Node *node, char op);
 
+void emit_expr(Node *node);
+
 bool dumpstack = false;
 bool dumpsource = false;
 
@@ -343,6 +345,25 @@ void emit_binop_int(Node *node) {
             break;
         case '*':
             assert(0);
+            break;
+        case '^':
+            assert(0);
+            break;
+        case OP_SAL: // ASL
+            assert(0);
+            break;
+        case OP_SAR:
+            assert(0);
+            break;
+        case OP_SHR: // LSR
+            assert(0);
+            break;
+        case '/':
+            assert(0);
+            break;
+        case '%':
+            assert(0);
+            break;
         default:
             printf("node->kind = %u\n", node->kind);
             assert(0);
