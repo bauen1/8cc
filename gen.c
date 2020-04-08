@@ -643,7 +643,7 @@ static void emit_gload(Type *ty, char *label, int off) {
                 break;
             case 4:
                 emit("lda a:%s + %u", label, off);
-                emit("ldx a:%s + %u 2", label, off);
+                emit("ldx a:%s + %u + 2", label, off);
                 break;
             case 8:
                 assert(0);
@@ -1360,11 +1360,11 @@ static void emit_data_addr(Node *operand, int depth) {
     switch(operand->kind) {
         case AST_LVAR:
             {
-                const char * const label = make_label();
                 emit_data_segment();
+                const char * const label = make_label();
+                emit(".word %s", label);
                 emit_label(label);
                 do_emit_data(operand->lvarinit, operand->ty->size, 0, depth + 1);
-                emit(".word %s", label);
             }
             break;
         case AST_GVAR:
