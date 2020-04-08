@@ -726,38 +726,43 @@ static void emit_func_call(Node *node) {
     // emit_noident(";");
 }
 
-static void emit_deref_a(size_t size, size_t off) {
-    emit("pha");
-    stackpos += 2;
+/* see also emit_lload */
+static void emit_deref_a(Type *ty, size_t size, size_t off) {
+    if (ty->kind == KIND_ARRAY) {
+        emit("clc");
+        emit("adc #$%04x", off);
+    } else if (ty->kind == KIND_FLOAT) {
+        assert(0);
+    } else if ((ty->kind == KIND_DOUBLE) || (ty->kind == KIND_LDOUBLE)) {
+        assert(0);
+    } else {
+        emit("pha");
+        stackpos += 2;
 
-    switch(size) {
-        case 1:
-            /* fall-through */
-        case 2:
-            emit("ldy #$%04x", off);
-            emit("lda ($1,S),Y");
-            break;
-        case 3:
-            emit("ldy #$%04x", off + 1);
-            emit("lda ($1,S),Y");
-            emit("tax");
-            emit("dey");
-            emit("lda ($1,S),Y");
-            break;
+        switch(size) {
+            case 1:
+                /* fall-through */
+            case 2:
+                emit("ldy #$%04x", off);
+                emit("lda ($1,S),Y");
+                break;
+            case 3:
+                emit("ldy #$%04x", off + 1);
+                emit("lda ($1,S),Y");
+                emit("tax");
+                emit("dey");
+                emit("lda ($1,S),Y");
+                break;
+        }
+
+        emit("ply");
+        stackpos -= 2;
     }
-
-    emit("ply");
-    stackpos -= 2;
 }
 
 static void emit_deref(Node *node) {
     emit_expr(node->operand);
-    assert(node->operand->ty->ptr->kind != KIND_ARRAY);
-    assert(node->operand->ty->ptr->kind != KIND_FLOAT);
-    assert(node->operand->ty->ptr->kind != KIND_DOUBLE);
-    assert(node->operand->ty->ptr->kind != KIND_LDOUBLE);
-
-    emit_deref_a(node->operand->ty->ptr->size, 0);
+    emit_deref_a(node->operand->ty->ptr, node->operand->ty->ptr->size, 0);
 
     emit_load_convert(node->ty, node->operand->ty->ptr);
 }
@@ -1042,7 +1047,7 @@ static void emit_load_struct_ref(Node *struc, Type *field, int off) {
             break;
         case AST_DEREF:
             emit_expr(struc->operand);
-            emit_deref_a(field->size, field->offset + off);
+            emit_deref_a(field, field->size, field->offset + off);
             break;
         default:
             error("internal error %s", node2s(struc));
