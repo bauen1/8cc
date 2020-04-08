@@ -185,7 +185,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < vec_len(toplevels); i++) {
         Node *v = vec_get(toplevels, i);
         if (dumpast)
-            printf("%s", node2s(v));
+            printf("%s\n", node2s(v));
         else
             emit_toplevel(v);
     }
