@@ -756,7 +756,10 @@ static void emit_pointer_arith(char kind, Node *left, Node *right) {
 /* FIXME: assumes size = 2 */
 static void emit_pre_op(Node *node, char op) {
     assert((op == '+') || (op == '-'));
+
     emit_expr(node->operand);
+    assert(node->operand->ty->size == 2);
+
     if (node->ty->ptr != NULL) {
         if (node->ty->ptr->size == 1) {
             if (op == '+') {
@@ -765,7 +768,13 @@ static void emit_pre_op(Node *node, char op) {
                 emit("dec");
             }
         } else {
-            assert(0);
+            if (op == '+') {
+                emit("clc");
+                emit("adc #$%04x", node->ty->ptr->size);
+            } else if (op == '-') {
+                emit("sec");
+                emit("sbc #$%04x", node->ty->ptr->size);
+            }
         }
     } else {
         if (op == '+') {
@@ -780,9 +789,14 @@ static void emit_pre_op(Node *node, char op) {
 /* X++ / X-- */
 /* FIXME: assumes size = 2 */
 static void emit_post_op(Node *node, char op) {
+    assert((op == '+') || (op == '-'));
+
     emit_expr(node->operand);
+    assert(node->operand->ty->size == 2);
+
     emit("pha");
     stackpos += 2;
+
     if (node->ty->ptr != NULL) {
         if (node->ty->ptr->size == 1) {
             if (op == '+') {
@@ -791,7 +805,13 @@ static void emit_post_op(Node *node, char op) {
                 emit("dec");
             }
         } else {
-            assert(0);
+            if (op == '+') {
+                emit("clc");
+                emit("adc #$%04x", node->ty->ptr->size);
+            } else if (op == '-') {
+                emit("sec");
+                emit("sbc #$%04x", node->ty->ptr->size);
+            }
         }
     } else {
         if (op == '+') {
@@ -800,7 +820,9 @@ static void emit_post_op(Node *node, char op) {
             emit("dec");
         }
     }
+
     emit_store(node->operand);
+
     emit("pla");
     stackpos -= 2;
 }
@@ -882,7 +904,9 @@ static void emit_cmp_ne(Node *node) {
         emit("pha");
         emit("phx");
         stackpos += 4;
+
         emit_expr(node->right);
+
         emit("cmp $3,S");
         emit("beq %s", bool_false);
         emit("txa");
