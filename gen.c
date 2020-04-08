@@ -897,7 +897,7 @@ static void emit_cmp_ne(Node *node) {
 
         emit("ply");
         emit("ply");
-        stackpos -= 2;
+        stackpos -= 4;
     } else {
         assert(0);
     }
@@ -1104,6 +1104,8 @@ static void emit_binop_not(Node *node) {
 }
 
 void emit_expr(Node *node) {
+    size_t old_stackpos = stackpos;
+
     switch (node->kind) {
         case AST_LITERAL:
             emit_literal(node);
@@ -1224,6 +1226,10 @@ void emit_expr(Node *node) {
 
             printf("node->kind = %u\n", node->kind);
             assert(0);
+    }
+
+    if (old_stackpos != stackpos) {
+        error("internal error: old_stackpos != stackpos: %s", node2s(node));
     }
 }
 
