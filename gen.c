@@ -628,7 +628,7 @@ static void emit_gload(Type *ty, char *label, int off) {
     assert(ty->bitsize <= 0);
 
     if (ty->kind == KIND_ARRAY) {
-        emit("lda a:%s + %u", label, off);
+        emit("lda # %s + %u", label, off);
     } else if (ty->kind == KIND_FLOAT) {
         assert(0);
     } else if (ty->kind == KIND_DOUBLE || ty->kind == KIND_LDOUBLE) {
