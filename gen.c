@@ -460,12 +460,6 @@ void emit_binop_int(Node *node) {
                 emit_expr(node->left);
                 emit("tax");
 
-                /* Y = shift count
-                 * $00 -> quotient
-                 * A -> remainder */
-                emit("ldy #$0000");
-                emit("stz $00");
-
                 emit("phx");
                 stackpos += 2;
 
@@ -473,6 +467,13 @@ void emit_binop_int(Node *node) {
 
                 emit("plx");
                 stackpos -= 2;
+
+                /* Y = shift count
+                 * $00 -> result
+                 * A -> remainder */
+                emit("ldy #$0001");
+                emit("stz $00"); /* result */
+
 
                 emit_label(div1);
                 emit("asl a");
@@ -490,7 +491,7 @@ void emit_binop_int(Node *node) {
                 emit("bcc %s", div3);
                 emit("tax");
                 emit_label(div3);
-                emit("rol $00");
+                emit("rol $00"); /* result */
                 emit("pla");
                 emit("lsr a");
                 emit("dey");
