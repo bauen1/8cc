@@ -1583,7 +1583,6 @@ static Type *read_enum_def() {
     }
     if (tag) {
         Type *ty = map_get(tags, tag);
-            assert(ty != NULL);
         if (ty && ty->kind != KIND_ENUM)
             errort(tok, "declarations of %s does not match", tag);
     }
