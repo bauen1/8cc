@@ -16,6 +16,7 @@ static void ensure_lvar_init(Node *node);
 static void emit_label(const char *s);
 static void emit_pre_op(Node *node, char op);
 static void emit_post_op(Node *node, char op);
+static void do_emit_data(Vector *inits, int size, int off, int depth);
 
 void emit_expr(Node *node);
 
@@ -348,7 +349,36 @@ void emit_binop_int(Node *node) {
             }
             break;
         case '*':
-            assert(0);
+            assert(node->left->ty->size == 2);
+            assert(node->right->ty->size == 2);
+            {
+                emit_expr(node->left);
+                emit("pha");
+                stackpos += 2;
+                emit_expr(node->right);
+                emit("sta $00"); /* operand 1*/
+                emit("pla");
+                stackpos -= 2;
+                emit("sta $02"); /* operand 2*/
+
+                emit("lda #$0000"); /* result */
+
+                const char * const mult1 = make_label();
+                const char * const mult2 = make_label();
+                const char * const done = make_label();
+
+                emit_label(mult1);
+                emit("ldx $00"); /* operand 1 */
+                emit("beq %s", done);
+                emit("lsr $00");
+                emit("bcc %s", mult2);
+                emit("clc");
+                emit("adc $02"); /* operand 2 */
+                emit_label(mult2);
+                emit("asl $02"); /* operand 2 */
+                emit("bra %s", mult1);
+                emit_label(done);
+            }
             break;
         case '^':
             assert(node->left->ty->size == 2);
@@ -370,19 +400,80 @@ void emit_binop_int(Node *node) {
             }
             break;
         case OP_SAL: // ASL
-            assert(0);
+            assert(node->left->ty->size == 2);
+            assert(node->right->ty->size == 2);
+            if (node->right->kind == AST_LITERAL) {
+                emit_expr(node->left);
+                for (size_t i = 0; i < node->right->ival; i++) {
+                    emit("asl");
+                }
+            } else {
+                assert(0);
+            }
             break;
         case OP_SAR:
             assert(0);
-            break;
         case OP_SHR: // LSR
-            assert(0);
+            assert(node->left->ty->size == 2);
+            assert(node->right->ty->size == 2);
+            if (node->right->kind == AST_LITERAL) {
+                emit_expr(node->left);
+                for (size_t i = 0; i < node->right->ival; i++) {
+                    emit("lsr");
+                }
+            } else {
+                assert(0);
+            }
             break;
         case '/':
-            assert(0);
-            break;
         case '%':
-            assert(0);
+            assert(node->left->ty->size == 2);
+            assert(node->right->ty->size == 2);
+            {
+                /* source: http://archive.6502.org/datasheets/wdc_65816_programming_manual.pdf */
+                const char *div1 = make_label();
+                const char *div2 = make_label();
+                const char *div3 = make_label();
+                const char *div4 = make_label();
+
+                emit_expr(node->left);
+                emit("tax");
+
+                /* Y = shift count
+                 * $00 -> quotient
+                 * A -> remainder */
+                emit("ldy #$0000");
+                emit("stz $00");
+
+                emit_expr(node->right);
+
+                emit_label(div1);
+                emit("asl a");
+                emit("bcs %s", div2);
+                emit("iny");
+                emit("cpy #17");
+                emit("bne %s", div1);
+                emit_label(div2);
+                emit("ror a");
+                emit_label(div4);
+                emit("pha");
+                emit("txa");
+                emit("sec");
+                emit("sbc $1,S");
+                emit("bcc %s", div3);
+                emit("tax");
+                emit_label(div3);
+                emit("rol $00");
+                emit("pla");
+                emit("lsr a");
+                emit("dey");
+                emit("bne %s", div4);
+            }
+
+            if (node->kind == '%') {
+                emit("txa");
+            }
+
             break;
         default:
             printf("node->kind = %u\n", node->kind);
@@ -846,7 +937,33 @@ static void emit_cmp_lt(Node *node) {
 /* FIXME: see above */
 /* left <= right */
 static void emit_cmp_le(Node *node) {
-    assert(0);
+    assert(node->left->ty->size == node->right->ty->size);
+    assert(node->left->ty->size == 2);
+    assert(node->right->ty->size == 2);
+    assert(node->left->ty->usig);
+    assert(node->right->ty->usig);
+
+    emit_expr(node->right);
+    emit("pha");
+    stackpos += 2;
+
+    emit_expr(node->left);
+    emit("cmp $1,S");
+
+    const char * const bool_true = make_label();
+    const char * const bool_end = make_label();
+
+    emit("bcc %s", bool_true); /* blt branch if less than */
+    emit("beq %s", bool_true); /**/
+
+    emit("lda #$0000");
+    emit("bra %s", bool_end);
+    emit_label(bool_true);
+    emit("lda #$0001");
+    emit_label(bool_end);
+
+    emit("ply");
+    stackpos -= 2;
 }
 
 static void emit_load_struct_ref(Node *struc, Type *field, int off) {
@@ -1168,7 +1285,9 @@ void emit_func(Node *func) {
         for (size_t i = 0; i < vec_len(func->localvars); i++) {
             Node *v = vec_get(func->localvars, i);
             const size_t size = v->ty->size;
-            assert(v->ty->size % v->ty->align == 0);
+            if (v->ty->align != 0) {
+                assert(v->ty->size % v->ty->align == 0);
+            }
             localarea += size;
             v->loff = localarea;
             emit_noident("; local offset = %#x\n", v->loff);
@@ -1201,7 +1320,13 @@ static void emit_zero(size_t size) {
 static void emit_data_addr(Node *operand, int depth) {
     switch(operand->kind) {
         case AST_LVAR:
-            assert(0);
+            {
+                const char * const label = make_label();
+                emit_data_segment();
+                emit_label(label);
+                do_emit_data(operand->lvarinit, operand->ty->size, 0, depth + 1);
+                emit(".word %s", label);
+            }
             break;
         case AST_GVAR:
             emit_noident(".word %s", operand->glabel);
