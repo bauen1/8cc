@@ -306,6 +306,8 @@ static void emit_decl(Node *node) {
 void emit_binop_int(Node *node) {
     switch (node->kind) {
         case '+':
+            assert(node->left->ty->size == 2);
+            assert(node->right->ty->size == 2);
             if (node->left->kind == AST_LITERAL) {
                 emit_expr(node->right);
                 emit("clc");
@@ -349,7 +351,23 @@ void emit_binop_int(Node *node) {
             assert(0);
             break;
         case '^':
-            assert(0);
+            assert(node->left->ty->size == 2);
+            assert(node->right->ty->size == 2);
+            if (node->right->kind == AST_LITERAL) {
+                emit_expr(node->left);
+                emit("eor #$%04x", node->right->ival);
+            } else if (node->left->kind == AST_LITERAL) {
+                emit_expr(node->right);
+                emit("eor #$%04x", node->left->ival);
+            } else {
+                emit_expr(node->left);
+                emit("pha");
+                stackpos += 2;
+                emit_expr(node->right);
+                emit("eor $1,S");
+                emit("ply");
+                stackpos -= 2;
+            }
             break;
         case OP_SAL: // ASL
             assert(0);
