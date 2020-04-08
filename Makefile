@@ -3,7 +3,7 @@ OBJS=cpp.o debug.o dict.o gen.o lex.o vector.o parse.o buffer.o map.o \
      error.o path.o file.o set.o encoding.o
 TESTS := $(patsubst %.c,%.bin,$(filter-out test/testmain.c,$(wildcard test/*.c)))
 ECC=./8cc
-override CFLAGS += -DBUILD_DIR='"$(shell pwd)"' -DSYSROOT_DIR='"/sysroot"'
+override CFLAGS += -DBUILD_DIR='"$(shell pwd)"' -DSYSROOT_DIR='"$(shell pwd)/libruntime"'
 
 LDFLAGS += -lubsan
 
@@ -78,6 +78,19 @@ clean: cleanobj
 
 cleanobj:
 	rm -f *.o *.s test/*.o test/*.bin utiltest
+
+LIBRUNTIME_OBJS := libruntime/strlen.o
+
+CA65 ?= ca65
+AR65 ?= ar65
+
+CA65_FLAGS := --cpu 65816 --memory-model huge
+
+libruntime/%.o libruntime/%.list: libruntime/%.s
+	$(CA65) $(CA65_FLAGS) --listing libruntime/$*.list -o libruntime/$*.o $<
+
+libruntime/libruntime.lib: $(LIBRUNTIME_OBJS)
+	$(AR65) a $@ $?
 
 all: 8cc
 
