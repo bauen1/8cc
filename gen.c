@@ -1400,6 +1400,9 @@ static void emit_data_primtype(Type *ty, Node *val, int depth) {
         case KIND_INT:
             emit(".word $%04X", eval_intexpr(val, NULL));
             break;
+        case KIND_LONG:
+            emit(".dword $%04x", eval_intexpr(val, NULL));
+            break;
         case KIND_PTR:
             if (val->kind == OP_LABEL_ADDR) {
                 emit_noident(".addr %s", val->newlabel);
@@ -1430,6 +1433,8 @@ static void emit_data_primtype(Type *ty, Node *val, int depth) {
             }
             break;
         default:
+            printf("type->kind = %u\n", ty->kind);
+            error("internal error: %s", node2s(val));
             assert(0);
     }
 }
