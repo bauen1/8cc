@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdnoreturn.h>
 #include <time.h>
+#include <stdint.h>
+#include <stddef.h>
 
 enum {
     TIDENT,
