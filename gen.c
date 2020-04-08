@@ -131,6 +131,8 @@ void emit_lvar(Node *node) {
 
 /* TODO: for large num there's better ways */
 static void emit_stack_cleanup(size_t num) {
+    assert(num <= 10 * 1024); /* FIXME: remove, but there's probably something fisshy about a call like this */
+
     if (num % 2 != 0) {
         emit("phb");
         num++;
@@ -509,7 +511,7 @@ static void emit_gload(Type *ty, char *label, int off) {
     assert(ty->bitsize <= 0);
 
     if (ty->kind == KIND_ARRAY) {
-        emit("lda %s + %u", label, off);
+        emit("lda a:%s + %u", label, off);
     } else if (ty->kind == KIND_FLOAT) {
         assert(0);
     } else if (ty->kind == KIND_DOUBLE || ty->kind == KIND_LDOUBLE) {
@@ -517,15 +519,14 @@ static void emit_gload(Type *ty, char *label, int off) {
     } else {
         switch (ty->size) {
             case 1:
-                emit("lda %s + %u", label, off);
-                emit("and $00ff");
+                emit("lda a:%s + %u", label, off);
                 break;
             case 2:
-                emit("lda %s + %u", label, off);
+                emit("lda a:%s + %u", label, off);
                 break;
             case 4:
-                emit("lda %s + %u", label, off);
-                emit("ldx %s + %u 2", label, off);
+                emit("lda a:%s + %u", label, off);
+                emit("ldx a:%s + %u 2", label, off);
                 break;
             case 8:
                 assert(0);
@@ -1305,7 +1306,7 @@ static void emit_global_decl(Node *v) {
         emit_noident(".import %s", v->declvar->glabel);
     } else {
         if (!v->declvar->ty->isstatic) {
-            emit_noident(".global %s:far", v->declvar->glabel);
+            emit_noident(".global %s : abs", v->declvar->glabel);
         }
         emit_global_var(v);
     }

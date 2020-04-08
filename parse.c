@@ -121,6 +121,10 @@ static void mark_location() {
     source_loc->line = tok->line;
 }
 
+static char * name_to_label(const char *name) {
+    return format("_%s", name);
+}
+
 
 /*
  * Constructors
@@ -189,7 +193,7 @@ static Node *ast_lvar(Type *ty, char *name) {
 }
 
 static Node *ast_gvar(Type *ty, char *name) {
-    Node *r = make_ast(&(Node){ AST_GVAR, ty, .varname = name, .glabel = name });
+    Node *r = make_ast(&(Node){ AST_GVAR, ty, .varname = name, .glabel = name_to_label(name) });
     map_put(globalenv, name, r);
     return r;
 }
@@ -249,7 +253,7 @@ static Node *ast_funcall(Type *ftype, char *fname, Vector *args) {
 }
 
 static Node *ast_funcdesg(Type *ty, char *fname) {
-    return make_ast(&(Node){ AST_FUNCDESG, ty, .fname = fname });
+    return make_ast(&(Node){ AST_FUNCDESG, ty, .fname = name_to_label(fname) });
 }
 
 static Node *ast_funcptr_call(Node *fptr, Vector *args) {
@@ -267,7 +271,7 @@ static Node *ast_func(Type *ty, char *fname, Vector *params, Node *body, Vector 
     return make_ast(&(Node){
         .kind = AST_FUNC,
         .ty = ty,
-        .fname = fname,
+        .fname = name_to_label(fname),
         .params = params,
         .localvars = localvars,
         .body = body});
@@ -306,11 +310,11 @@ static Node *ast_struct_ref(Type *ty, Node *struc, char *name) {
 }
 
 static Node *ast_goto(char *label) {
-    return make_ast(&(Node){ AST_GOTO, .label = label });
+    return make_ast(&(Node){ AST_GOTO, .label = name_to_label(label) });
 }
 
 static Node *ast_jump(char *label) {
-    return make_ast(&(Node){ AST_GOTO, .label = label, .newlabel = label });
+    return make_ast(&(Node){ AST_GOTO, .label = name_to_label(label), .newlabel = name_to_label(label) });
 }
 
 static Node *ast_computed_goto(Node *expr) {
@@ -318,15 +322,15 @@ static Node *ast_computed_goto(Node *expr) {
 }
 
 static Node *ast_label(char *label) {
-    return make_ast(&(Node){ AST_LABEL, .label = label });
+    return make_ast(&(Node){ AST_LABEL, .label = name_to_label(label) });
 }
 
 static Node *ast_dest(char *label) {
-    return make_ast(&(Node){ AST_LABEL, .label = label, .newlabel = label });
+    return make_ast(&(Node){ AST_LABEL, .label = name_to_label(label), .newlabel = name_to_label(label) });
 }
 
 static Node *ast_label_addr(char *label) {
-    return make_ast(&(Node){ OP_LABEL_ADDR, make_ptr_type(type_void), .label = label });
+    return make_ast(&(Node){ OP_LABEL_ADDR, make_ptr_type(type_void), .label = name_to_label(label) });
 }
 
 static Type *make_type(Type *tmpl) {
@@ -2216,7 +2220,7 @@ static void read_decl(Vector *block, bool isglobal) {
             }
             if (next_token('=')) {
                 vec_push(block, ast_decl(var, read_decl_init(ty)));
-            } else if ((sclass == S_EXTERN) || (isglobal && !ty->isstatic)) {
+            } else if ((sclass == S_EXTERN) || (isglobal && !ty->isstatic && ty->kind == KIND_FUNC)) {
                 ty->isextern = true; /* FIXME: a bit hackish */
                 vec_push(block, ast_decl(var, NULL));
             } else if (sclass != S_EXTERN && ty->kind != KIND_FUNC) {
@@ -2662,7 +2666,7 @@ static Node *read_goto_stmt() {
 }
 
 static Node *read_label(Token *tok) {
-    char *label = tok->sval;
+    char *label = name_to_label(tok->sval);
     if (map_get(labels, label))
         errort(tok, "duplicate label: %s", tok2s(tok));
     Node *r = ast_label(label);
