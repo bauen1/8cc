@@ -785,7 +785,7 @@ static Node *read_sizeof_operand() {
     // Sizeof on void or function type is GNU extension
     int size = (ty->kind == KIND_VOID || ty->kind == KIND_FUNC) ? 1 : ty->size;
     assert(0 <= size);
-    return ast_inttype(type_ulong, size);
+    return ast_inttype(type_uint, size);
 }
 
 /*
