@@ -296,7 +296,7 @@ static void ensure_lvar_init(Node *node) {
 
 static void emit_decl(Node *node) {
     if (node->declvar->ty->isextern) {
-        emit_noident(".import %s", node->declvar->glabel);
+        emit_noident(".global %s", node->declvar->glabel);
     }
 
     if (node->declinit) {
@@ -1485,7 +1485,7 @@ static void emit_global_var(Node *v) {
 
 static void emit_global_decl(Node *v) {
     if (v->declvar->ty->isextern) {
-        emit_noident(".import %s", v->declvar->glabel);
+        emit_noident(".global %s", v->declvar->glabel);
     } else {
         if (!v->declvar->ty->isstatic) {
             emit_noident(".global %s : abs", v->declvar->glabel);
