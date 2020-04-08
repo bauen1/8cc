@@ -706,7 +706,14 @@ static void emit_func_call(Node *node) {
 
     if (is_ptr_call) {
         emit_expr(node->fptr);
-        assert(0);
+
+        /* we manually encode a jmp long instruction at $00 */
+        emit("ldy #$005C");
+        emit("sty $0000");
+        emit("sta $0001");
+        emit("stx $0003");
+
+        emit("jsl $000000");
     } else {
         emit("jsl %s", node->fname);
     }
