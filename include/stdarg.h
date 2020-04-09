@@ -52,7 +52,12 @@ typedef va_list __gnuc_va_list;
 
 #else
 
-#error "stdarg not implemented"
+typedef unsigned char * va_list;
+
+#define va_start(ap, fix) ap = ((va_list)(&(fix)))
+#define va_arg(ap, type) (*(type *)(ap -= sizeof((type))))
+#define va_copy(dest, src) ((dest) = (src))
+#define va_end(ap)
 
 #endif
 

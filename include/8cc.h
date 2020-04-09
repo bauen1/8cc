@@ -39,6 +39,3 @@
 #define __signed__ signed
 #define __typeof__ typeof
 #define __volatile__ volatile
-
-typedef unsigned short char16_t;
-typedef unsigned int char32_t;
