@@ -167,7 +167,7 @@ static void emit_intcast(Type *from) {
             emit("and #$00ff");
             if (! from->usig) {
                 /* sign-extend */
-                char *l = make_label();
+                const char * const l = make_label();
                 emit("bpl %s", l);
                 emit("eor #$ff00");
                 emit_label(l);
@@ -175,7 +175,16 @@ static void emit_intcast(Type *from) {
 
             /* fall-through */
         case KIND_INT:
-            emit("ldx #$0000");
+            if (! from->usig) {
+                /* sign-extend */
+                emit("ldx #$0000");
+                const char * const l = make_label();
+                emit("cmp #$0000");
+                emit("bpl %s", l);
+                emit("ldx #$FFFF");
+            } else {
+                emit("ldx #$0000");
+            }
             break;
         case KIND_LONG:
             break;
