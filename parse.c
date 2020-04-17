@@ -519,7 +519,7 @@ static Node *conv(Node *node) {
         return ast_uop(AST_ADDR, make_ptr_type(ty), node);
     case KIND_SHORT: case KIND_CHAR: case KIND_BOOL:
         // C11 6.3.1.1p2: The integer promotions
-        return ast_conv(type_int, node);
+        return ast_conv(type_uint, node);
     case KIND_INT:
         if (ty->bitsize > 0)
             return ast_conv(type_int, node);
