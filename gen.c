@@ -182,6 +182,7 @@ static void emit_intcast(Type *from) {
                 emit("cmp #$0000");
                 emit("bpl %s", l);
                 emit("ldx #$FFFF");
+                emit_label(l);
             } else {
                 emit("ldx #$0000");
             }
@@ -246,6 +247,7 @@ static void emit_save_literal(Node *node, Type *totype, int off) {
         case KIND_PTR:
             emit("tay");
             emit("lda #$%04x", node->ival);
+            assert(off <= stackpos);
             emit("sta $%02X,S", 1 + stackpos - off);
             emit("tya");
             break;
@@ -1318,10 +1320,6 @@ void emit_func(Node *func) {
     }
     emit_noident("%s:", func->fname);
 
-    // stackpos = 2; /* we already have the return address on stack */
-
-    assert(!func->ty->hasva);
-
     stackpos = 0;
 
     {
@@ -1371,7 +1369,7 @@ void emit_func(Node *func) {
                 assert(v->ty->size % v->ty->align == 0);
             }
             localarea += size;
-            v->loff = localarea;
+            v->loff = localarea + stackpos;
             emit_noident("; local offset = %#x\n", v->loff);
         }
 
